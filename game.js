@@ -110,8 +110,6 @@ const SUSPECTS = [
     }
 ];
 
-
-// Estado del Juego
 // Auspiciantes globales
 const SPONSORS = [
     { name: "Asados La Posta", text: "El mejor asado puntano", url: "https://example.com/asados", image: "" },
@@ -119,7 +117,7 @@ const SPONSORS = [
     { name: "Hostería de la Sierra", text: "Descanso con vistas serranas", url: "https://example.com/hosteria", image: "" }
 ];
 
-// Asignar auspiciantes a algunas ubicaciones (índice en SPONSORS)
+// Asignar auspiciantes a algunas ubicaciones
 const _ls = LOCATIONS.find(l => l.id === 'san_luis'); if (_ls) _ls.sponsor = 0;
 const _m = LOCATIONS.find(l => l.id === 'merlo'); if (_m) _m.sponsor = 1;
 const _p = LOCATIONS.find(l => l.id === 'potrero'); if (_p) _p.sponsor = 2;
@@ -129,19 +127,15 @@ const game = {
     thiefPath: [],
     thief: null,
     daysLeft: 7,
-    hours: 9, // 9 AM
+    hours: 9,
     warrant: null,
 
     init: function () {
-        // Reproducir sonido de inicio
         SoundManager.playStart();
-
-        // Seleccionar ladrón al azar
         this.thief = SUSPECTS[Math.floor(Math.random() * SUSPECTS.length)];
 
-        // Generar ruta del ladrón (simple: 3 saltos)
         let path = [];
-        let current = LOCATIONS[0]; // Empieza en San Luis (o random)
+        let current = LOCATIONS[0];
         path.push(current);
 
         for (let i = 0; i < 3; i++) {
@@ -150,12 +144,7 @@ const game = {
             path.push(current);
         }
         this.thiefPath = path;
-
-        // Jugador empieza en el mismo lugar o uno aleatorio?
-        // Vamos a hacer que el jugador empiece en San Luis Capital siempre
         this.currentLocation = LOCATIONS[0];
-
-        // Resetear tiempo
         this.daysLeft = 7;
         this.hours = 9;
         this.warrant = null;
@@ -167,69 +156,49 @@ const game = {
 
     advanceTime: function (hours) {
         this.hours += hours;
-        if (this.hours >= 22) { // Dormir
+        if (this.hours >= 22) {
             this.hours = 8;
             this.daysLeft--;
             ui.log("Has tenido que dormir. Un día menos.");
         }
         ui.updateTime();
-
         if (this.daysLeft <= 0) {
             this.gameOver(false);
         }
     },
 
     travel: function (destId) {
-        // Reproducir sonido de viaje
         SoundManager.playTravel();
-
         const dest = LOCATIONS.find(l => l.id === destId);
         this.currentLocation = dest;
-        this.advanceTime(4); // Viajar toma tiempo
+        this.advanceTime(4);
         ui.updateLocation();
         ui.log("Has viajado a " + dest.name);
         ui.closeModal('travel-modal');
-
-        // Chequear si atrapaste al ladrón
         this.checkCatch();
     },
 
     investigate: function () {
-        // Reproducir sonido de investigar
         SoundManager.playInvestigate();
-
         this.advanceTime(2);
-
-        // Lógica de pistas
-        // Si el ladrón ESTUVO aquí, damos pista del SIGUIENTE lugar
-        // Si el ladrón ESTÁ aquí, damos pista de su apariencia
-
         const pathIndex = this.thiefPath.findIndex(l => l.id === this.currentLocation.id);
-
         let clues = [];
 
         if (pathIndex !== -1 && pathIndex < this.thiefPath.length - 1) {
-            // El ladrón pasó por aquí y fue al siguiente lugar
             const nextLocation = this.thiefPath[pathIndex + 1];
-            // Dar una pista sobre el nextLocation
             const clue = nextLocation.clues[Math.floor(Math.random() * nextLocation.clues.length)];
             clues.push(`Un testigo dice: "${clue}"`);
             SoundManager.playClue();
-
-            // Y quizás una pista sobre el ladrón
             if (Math.random() > 0.5) {
                 clues.push(this.getThiefClue());
             }
         } else if (pathIndex === this.thiefPath.length - 1) {
-            // El ladrón está AQUÍ (o es el final de la línea)
             clues.push("¡La gente está muy nerviosa! Alguien sospechoso anda cerca.");
             clues.push(this.getThiefClue());
             SoundManager.playClue();
         } else {
-            // El ladrón nunca estuvo aquí
             clues.push("Nadie ha visto nada sospechoso por aquí.");
         }
-
         ui.showWitnesses(clues);
     },
 
@@ -237,15 +206,14 @@ const game = {
         this.warrant = name;
         document.getElementById('warrant-status').innerText = "ORDEN EMITIDA PARA: " + this.warrant;
         document.getElementById('warrant-status').style.color = "var(--terminal-green)";
-        // Limpiar coincidencias
-        const wm = document.getElementById('warrant-matches'); if (wm) wm.innerHTML = '';
+        const wm = document.getElementById('warrant-matches');
+        if (wm) wm.innerHTML = '';
     },
 
     getThiefClue: function () {
         const traits = ['sex', 'hair', 'feature', 'vehicle'];
         const trait = traits[Math.floor(Math.random() * traits.length)];
         const value = this.thief[trait];
-
         switch (trait) {
             case 'sex': return `El sospechoso era de sexo ${value}.`;
             case 'hair': return `Tenía el cabello ${value}.`;
@@ -256,10 +224,7 @@ const game = {
 
     showInvestigate: function () {
         ui.openModal('investigate-modal');
-        this.investigate(); // Generar pistas al abrir o al hacer clic en botones? 
-        // Simplificado: al abrir "Investigar" ya gastas tiempo y ves pistas.
-        // Mejor: mostrar botones "Interrogar Testigo", "Buscar Pistas", etc.
-        // Para MVP: Al hacer clic en Investigar, sale el modal con las pistas ya generadas.
+        this.investigate();
     },
 
     showTravel: function () {
@@ -274,13 +239,11 @@ const game = {
 
     issueWarrant: function () {
         SoundManager.playComputer();
-
         const sex = document.getElementById('w-sex').value;
         const hair = document.getElementById('w-hair').value;
         const feature = document.getElementById('w-feature').value;
         const vehicle = document.getElementById('w-vehicle').value;
 
-        // Buscar coincidencia
         const matches = SUSPECTS.filter(s =>
             (!sex || s.sex === sex) &&
             (!hair || s.hair === hair) &&
@@ -306,7 +269,6 @@ const game = {
             return;
         }
 
-        // Si hay múltiples coincidencias, mostrar botones para elegir
         status.innerText = `Múltiples coincidencias: ${matches.length}. Seleccione para emitir.`;
         status.style.color = "yellow";
         if (wm) {
@@ -325,10 +287,8 @@ const game = {
     },
 
     checkCatch: function () {
-        // Si estás en la ubicación final del ladrón
         const lastLoc = this.thiefPath[this.thiefPath.length - 1];
         if (this.currentLocation.id === lastLoc.id) {
-            // Y tienes la orden correcta
             if (this.warrant === this.thief.name) {
                 SoundManager.playSuccess();
                 this.gameOver(true);
@@ -339,8 +299,7 @@ const game = {
             } else {
                 SoundManager.playError();
                 ui.log("¡Lo tienes enfrente pero no tienes orden de arresto! Escapó.");
-                this.gameOver(false); // O dar oportunidad de ir a la PC?
-                // Para MVP: Game Over si lo encuentras sin orden.
+                this.gameOver(false);
             }
         }
     },
@@ -365,10 +324,9 @@ const ui = {
     updateLocation: function () {
         document.getElementById('location-display').innerText = "UBICACIÓN: " + game.currentLocation.name;
 
-        // Cargar imagen de la ubicación
         const locationImg = document.getElementById('location-img');
         if (locationImg) {
-            locationImg.src = "assets/" + game.currentLocation.id + ".png";
+            locationImg.src = game.currentLocation.id + ".png";
             locationImg.alt = game.currentLocation.name;
             locationImg.style.display = 'block';
         }
@@ -378,16 +336,11 @@ const ui = {
         area.innerText += msg;
         area.scrollTop = area.scrollHeight;
 
-        // Mostrar auspiciantes al entrar a la ubicación
         ui.showSponsor();
-
-        // Renderizar acciones rápidas (investigar, viajar a conexiones)
         ui.renderLocationActions();
     },
 
     updateTime: function () {
-        const days = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
-        // Simplificación de días, solo cuenta regresiva
         document.getElementById('time-display').innerText = `DÍAS RESTANTES: ${game.daysLeft} | HORA: ${game.hours}:00`;
     },
 
@@ -410,7 +363,7 @@ const ui = {
         list.innerHTML = '';
         game.currentLocation.connections.forEach(connId => {
             const loc = LOCATIONS.find(l => l.id === connId);
-            if (!loc) return; // saltar si id inválido
+            if (!loc) return;
             const btn = document.createElement('button');
             btn.className = 'btn';
             btn.innerText = loc.name;
@@ -424,21 +377,18 @@ const ui = {
         if (!container) return;
         container.innerHTML = '';
 
-        // Botón Investigar
         const inv = document.createElement('button');
         inv.className = 'loc-action-btn';
         inv.innerText = 'INVESTIGAR (rápido)';
         inv.onclick = () => game.showInvestigate();
         container.appendChild(inv);
 
-        // Botón Computadora
         const pc = document.createElement('button');
         pc.className = 'loc-action-btn';
         pc.innerText = 'COMPUTADORA';
         pc.onclick = () => game.showComputer();
         container.appendChild(pc);
 
-        // Botones de viaje a conexiones
         if (game.currentLocation && Array.isArray(game.currentLocation.connections)) {
             game.currentLocation.connections.forEach(connId => {
                 const loc = LOCATIONS.find(l => l.id === connId);
@@ -466,8 +416,8 @@ const ui = {
             p.style.padding = "10px";
             list.appendChild(p);
         });
-    }
-    ,
+    },
+
     showSponsor: function () {
         const sponsorArea = document.getElementById('sponsor-area');
         const nameEl = document.getElementById('sponsor-name');
@@ -475,7 +425,6 @@ const ui = {
         const imgEl = document.getElementById('sponsor-img');
         if (!sponsorArea || !nameEl || !copyEl) return;
 
-        // Preferir un sponsor asignado a la ubicación; si no, elegir aleatorio
         let s = null;
         if (game && game.currentLocation && typeof game.currentLocation.sponsor === 'number') {
             s = SPONSORS[game.currentLocation.sponsor];
@@ -483,7 +432,6 @@ const ui = {
         if (!s) {
             s = SPONSORS[Math.floor(Math.random() * SPONSORS.length)];
         }
-
         if (!s) return;
 
         nameEl.innerText = s.name;
@@ -498,7 +446,6 @@ const ui = {
             }
         }
 
-        // Hacer clickable el banner para abrir la URL del sponsor
         sponsorArea.onclick = () => {
             if (s.url && s.url !== '#') {
                 try { window.open(s.url, '_blank'); } catch (e) { window.location.href = s.url; }
