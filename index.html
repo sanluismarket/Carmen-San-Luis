@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Carmen San Luis: Detective Puntano</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
+</head>
+
+<body>
+    <div class="scanlines"></div>
+    <div class="container">
+        <header>
+            <h1>CARMEN SAN LUIS</h1>
+            <div class="status-bar">
+                <span id="location-display">UBICACIÓN: DESCONOCIDA</span>
+                <span id="time-display">DÍA: LUNES 9:00 AM</span>
+            </div>
+        </header>
+
+        <main id="game-screen">
+            <!-- Pantalla de Inicio -->
+            <div id="start-screen" class="screen active">
+                <h2>AGENCIA DE DETECTIVES DE SAN LUIS</h2>
+                <p>Un tesoro provincial ha sido robado.</p>
+                <p>Tu misión: Rastrear al ladrón a través de la provincia y arrestarlo.</p>
+                <button id="start-btn" class="btn">INICIAR MISIÓN</button>
+            </div>
+
+            <!-- Pantalla Principal de Juego -->
+            <div id="main-interface" class="screen hidden">
+                <div class="visual-area">
+                    <img id="location-img" src="" alt="Lugar actual" class="pixel-art-place">
+                    <div id="message-area" class="message-box">
+                        <p id="message-text">Bienvenido, Detective.</p>
+                    </div>
+                </div>
+
+                <div class="controls-area">
+                    <div class="actions">
+                        <button class="action-btn" onclick="game.showInvestigate()">INVESTIGAR</button>
+                        <button class="action-btn" onclick="game.showTravel()">VIAJAR</button>
+                        <button class="action-btn" onclick="game.showComputer()">COMPUTADORA</button>
+                    </div>
+                    <div id="location-actions" class="location-actions">
+                        <!-- Botones rápidos por ubicación (se generan desde JS) -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Modales / Sub-pantallas -->
+            <div id="investigate-modal" class="modal hidden">
+                <h3>INVESTIGAR</h3>
+                <div id="witnesses-list">
+                    <!-- Botones de testigos se generan aquí -->
+                </div>
+                <button class="btn-close" onclick="ui.closeModal('investigate-modal')">VOLVER</button>
+            </div>
+
+            <div id="travel-modal" class="modal hidden">
+                <h3>VIAJAR A...</h3>
+                <div id="destinations-list">
+                    <!-- Destinos se generan aquí -->
+                </div>
+                <button class="btn-close" onclick="ui.closeModal('travel-modal')">CANCELAR</button>
+            </div>
+
+            <div id="computer-modal" class="modal hidden">
+                <h3>BASE DE DATOS DE INTERPOL (SAN LUIS)</h3>
+                <div class="warrant-form">
+                    <label>Sexo: <select id="w-sex">
+                            <option value="">???</option>
+                            <option value="Masculino">Masculino</option>
+                            <option value="Femenino">Femenino</option>
+                        </select></label>
+                    <label>Cabello: <select id="w-hair">
+                            <option value="">???</option>
+                            <option value="Negro">Negro</option>
+                            <option value="Rubio">Rubio</option>
+                            <option value="Rojo">Rojo</option>
+                        </select></label>
+                    <label>Seña: <select id="w-feature">
+                            <option value="">???</option>
+                            <option value="Tatuaje">Tatuaje</option>
+                            <option value="Joya">Joya</option>
+                            <option value="Cicatriz">Cicatriz</option>
+                        </select></label>
+                    <label>Vehículo: <select id="w-vehicle">
+                            <option value="">???</option>
+                            <option value="Camioneta">Camioneta</option>
+                            <option value="Moto">Moto</option>
+                            <option value="Auto Clasico">Auto Clásico</option>
+                        </select></label>
+                    <button class="btn" onclick="game.issueWarrant()">EMITIR ORDEN</button>
+                </div>
+                <div id="warrant-status">ESTADO: SIN ORDEN</div>
+                <div id="warrant-matches" class="warrant-matches"></div>
+                <button class="btn-close" onclick="ui.closeModal('computer-modal')">CERRAR</button>
+            </div>
+        </main>
+
+        <footer id="sponsor-area" class="sponsor-area">
+            <div id="sponsor-banner" class="sponsor-banner">
+                <img id="sponsor-img" src="" alt="Auspiciante" class="sponsor-img" />
+                <div class="sponsor-text">
+                    <div id="sponsor-name">Auspiciante</div>
+                    <div id="sponsor-copy">Publicidad local retro</div>
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <script src="sounds.js"></script>
+    <script src="game.js"></script>
+</body>
+
+</html>
