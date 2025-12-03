@@ -129,6 +129,7 @@ const game = {
     daysLeft: 7,
     hours: 9,
     warrant: null,
+    previousLocation: null,
 
     init: function () {
         SoundManager.playStart();
@@ -148,13 +149,14 @@ const game = {
         this.daysLeft = 7;
         this.hours = 9;
         this.warrant = null;
+        this.previousLocation = null;
 
         ui.updateLocation();
         ui.updateTime();
         ui.log("¡El robo ha sido reportado! El sospechoso fue visto por última vez en " + this.currentLocation.name);
     },
 
-    advanceTime: function (hours) {
+    advanceTime: function (hours, triggerGameOver = true) {
         this.hours += hours;
         if (this.hours >= 22) {
             this.hours = 8;
@@ -162,26 +164,91 @@ const game = {
             ui.log("Has tenido que dormir. Un día menos.");
         }
         ui.updateTime();
-        if (this.daysLeft <= 0) {
+        if (triggerGameOver && this.daysLeft <= 0) {
             this.gameOver(false);
         }
     },
 
     travel: function (destId) {
+        // No se puede viajar si todavía no hay ubicación inicial
+        if (!this.currentLocation) {
+            SoundManager.playError();
+            ui.log("Aún no sabes desde dónde viajar. Inicia la misión primero.");
+            ui.closeModal('travel-modal');
+            return;
+        }
+
         SoundManager.playTravel();
         const dest = LOCATIONS.find(l => l.id === destId);
+        if (!dest) {
+            SoundManager.playError();
+            ui.log("Destino inválido. No se puede viajar.");
+            ui.closeModal('travel-modal');
+            return;
+        }
+
+        this.previousLocation = this.currentLocation;
         this.currentLocation = dest;
-        this.advanceTime(4);
+        // No detonar Game Over inmediatamente por tiempo, primero verificar captura
+        this.advanceTime(4, false);
         ui.updateLocation();
         ui.log("Has viajado a " + dest.name);
         ui.closeModal('travel-modal');
+
+        // Aviso al jugador si intenta llegar al lugar final sin orden de arresto
+        const lastLoc = this.thiefPath && this.thiefPath.length ? this.thiefPath[this.thiefPath.length - 1] : null;
+        if (lastLoc && dest.id === lastLoc.id && !this.warrant) {
+            ui.log("AVISO: Parece que este es el lugar final donde podría estar el sospechoso. Emitir una orden antes de intentar detenerlo.");
+        }
+
         this.checkCatch();
+
+        // Si después de verificar captura (y no ganar) se acabó el tiempo, entonces perder
+        if (this.daysLeft <= 0) {
+            this.gameOver(false);
+        }
     },
 
     investigate: function () {
+        // Si el juego no fue inicializado, evitar errores
+        if (!this.currentLocation) {
+            SoundManager.playError();
+            ui.log("Primero debes iniciar la misión antes de investigar.");
+            return;
+        }
+
         SoundManager.playInvestigate();
         this.advanceTime(2);
-        const pathIndex = this.thiefPath.findIndex(l => l.id === this.currentLocation.id);
+
+        // Lógica inteligente para encontrar el índice correcto en el camino (manejando bucles)
+        let pathIndex = -1;
+        const indices = [];
+        this.thiefPath.forEach((loc, idx) => {
+            if (loc.id === this.currentLocation.id) indices.push(idx);
+        });
+
+        if (indices.length === 0) {
+            pathIndex = -1;
+        } else if (indices.length === 1) {
+            pathIndex = indices[0];
+        } else {
+            // Hay bucles/visitas múltiples. Usar previousLocation para desambiguar.
+            // Buscamos un índice tal que thiefPath[index - 1] sea previousLocation
+            if (this.previousLocation) {
+                const match = indices.find(idx => idx > 0 && this.thiefPath[idx - 1].id === this.previousLocation.id);
+                if (match !== undefined) {
+                    pathIndex = match;
+                } else {
+                    // Si no coincide con el anterior, quizás estamos en el inicio o nos desviamos.
+                    // Por defecto tomamos el último visitado (asumiendo progreso) o el primero.
+                    // Mejor estrategia: tomar el mayor índice que sea menor al final (para dar pistas)
+                    pathIndex = indices[indices.length - 1];
+                }
+            } else {
+                // Si no hay previousLocation, estamos al inicio
+                pathIndex = indices[0];
+            }
+        }
         let clues = [];
 
         if (pathIndex !== -1 && pathIndex < this.thiefPath.length - 1) {
@@ -208,6 +275,16 @@ const game = {
         document.getElementById('warrant-status').style.color = "var(--terminal-green)";
         const wm = document.getElementById('warrant-matches');
         if (wm) wm.innerHTML = '';
+        ui.log("(DEBUG) Orden emitida: " + this.warrant);
+    },
+
+    normalize: function (s) {
+        if (!s) return '';
+        try {
+            return s.normalize('NFD').replace(/\p{Diacritic}/gu, '').trim().toLowerCase();
+        } catch (e) {
+            return s.replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
+        }
     },
 
     getThiefClue: function () {
@@ -287,18 +364,29 @@ const game = {
     },
 
     checkCatch: function () {
+        if (!this.thiefPath || this.thiefPath.length === 0) return;
         const lastLoc = this.thiefPath[this.thiefPath.length - 1];
-        if (this.currentLocation.id === lastLoc.id) {
-            if (this.warrant === this.thief.name) {
+        if (!lastLoc) return;
+
+        if (this.currentLocation && this.currentLocation.id === lastLoc.id) {
+            // comparar nombres de forma tolerante (sin tildes, espacios, mayúsculas)
+            const warrantNorm = this.normalize(this.warrant);
+            const thiefNorm = this.normalize(this.thief.name);
+            ui.log("(DEBUG) Comparando orden: '" + warrantNorm + "' vs sospechoso: '" + thiefNorm + "'");
+
+            // Sin orden: solo aviso, no Game Over todavía.
+            if (!this.warrant) {
+                SoundManager.playError();
+                ui.log("Parece que el sospechoso podría estar aquí, pero aún no tienes una orden de arresto. Vuelve cuando la tengas.");
+                return;
+            }
+
+            if (warrantNorm === thiefNorm) {
                 SoundManager.playSuccess();
                 this.gameOver(true);
-            } else if (this.warrant) {
-                SoundManager.playError();
-                ui.log("¡Encontraste al sospechoso pero la orden es incorrecta! Escapó.");
-                this.gameOver(false);
             } else {
                 SoundManager.playError();
-                ui.log("¡Lo tienes enfrente pero no tienes orden de arresto! Escapó.");
+                ui.log("¡Encontraste al sospechoso pero la orden es incorrecta! Escapó.");
                 this.gameOver(false);
             }
         }
@@ -322,7 +410,12 @@ const game = {
 // UI Controller
 const ui = {
     updateLocation: function () {
-        document.getElementById('location-display').innerText = "UBICACIÓN: " + game.currentLocation.name;
+        if (!game.currentLocation) return;
+
+        const locDisplay = document.getElementById('location-display');
+        if (locDisplay) {
+            locDisplay.innerText = "UBICACIÓN: " + game.currentLocation.name;
+        }
 
         const locationImg = document.getElementById('location-img');
         if (locationImg) {
@@ -333,19 +426,24 @@ const ui = {
 
         const msg = `\n\nLlegaste a ${game.currentLocation.name}. ${game.currentLocation.description}`;
         const area = document.getElementById('message-text');
-        area.innerText += msg;
-        area.scrollTop = area.scrollHeight;
+        if (area) {
+            area.innerText += msg;
+            area.scrollTop = area.scrollHeight;
+        }
 
         ui.showSponsor();
         ui.renderLocationActions();
     },
 
     updateTime: function () {
-        document.getElementById('time-display').innerText = `DÍAS RESTANTES: ${game.daysLeft} | HORA: ${game.hours}:00`;
+        const t = document.getElementById('time-display');
+        if (!t) return;
+        t.innerText = `DÍAS RESTANTES: ${game.daysLeft} | HORA: ${game.hours}:00`;
     },
 
     log: function (msg) {
         const area = document.getElementById('message-text');
+        if (!area) return;
         area.innerText += "\n> " + msg;
         area.scrollTop = area.scrollHeight;
     },
@@ -360,6 +458,7 @@ const ui = {
 
     renderDestinations: function () {
         const list = document.getElementById('destinations-list');
+        if (!list || !game.currentLocation || !Array.isArray(game.currentLocation.connections)) return;
         list.innerHTML = '';
         game.currentLocation.connections.forEach(connId => {
             const loc = LOCATIONS.find(l => l.id === connId);
